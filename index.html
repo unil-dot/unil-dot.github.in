@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Adventure Game Ultimate</title>
+<style>
+body {
+  margin: 0;
+  background: #0b0b0b;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: white;
+  font-family: Arial;
+}
+canvas {
+  background: #1c1c1c;
+  border: 4px solid lime;
+}
+#ui {
+  position: absolute;
+  top: 10px;
+  width: 100%;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<div id="ui"></div>
+<canvas id="game" width="600" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const ui = document.getElementById("ui");
+
+let level = 1;
+let health = 3;
+let lives = 3;
+let bullets = [];
+let gameState = "play";
+
+const player = { x: 40, y: 40, size: 20, speed: 4 };
+const goal = { x: 540, y: 540, size: 30 };
+
+const walls = [
+  {x:200,y:0,w:20,h:400},
+  {x:380,y:200,w:20,h:400},
+  {x:100,y:300,w:200,h:20},
+  {x:300,y:100,w:200,h:20}
+];
+
+let enemies = [];
+
+const levels = {
+  1: 1,
+  2: 2,
+  3: 3,
+  4: 4,
+  5: 5,
+  6: 6
+};
+
+function spawnEnemies() {
+  enemies = [];
+  for (let i = 0; i < level; i++) {
+    enemies.push({
+      x: Math.random()*500+50,
+      y: Math.random()*500+50,
+      size: 20,
+      speed: 1 + level*0.3
+    });
+  }
+}
+
+spawnEnemies();
+
+const keys = {};
+window.addEventListener("keydown", e => keys[e.key] = true);
+window.addEventListener("keyup", e => keys[e.key] = false);
+
+canvas.addEventListener("click", shoot);
+
+function shoot() {
+  bullets.push({
+    x: player.x + 10,
+    y: player.y + 10,
+    dx: 5,
+    dy: 0
+  });
+  beep();
+}
+
+function beep() {
+  const ctxx = new AudioContext();
+  const osc = ctxx.createOscillator();
+  osc.connect(ctxx.destination);
+  osc.start();
+  osc.stop(ctxx.currentTime + 0.05);
+}
+
+function collide(a,b) {
+  return a.x < b.x+b.size && a.x+a.size > b.x &&
+         a.y < b.y+b.size && a.y+a.size > b.y;
+}
+
+function wallCollide(p) {
+  return walls.some(w =>
+    p.x < w.x+w.w && p.x+p.size > w.x &&
+    p.y < w.y+w.h && p.y+p.size > w.y
+  );
+}
+
+function update() {
+  if (gameState !== "play") return;
+
+  let oldX = player.x, oldY = player.y;
+
+  if (keys["ArrowUp"]||keys["w"]) player.y -= player.speed;
+  if (keys["ArrowDown"]||keys["s"]) player.y += player.speed;
+  if (keys["ArrowLeft"]||keys["a"]) player.x -= player.speed;
+  if (keys["ArrowRight"]||keys["d"]) player.x += player.speed;
+
+  if (wallCollide(player)) {
+    player.x = oldX;
+    player.y = oldY;
+  }
+
+  enemies.forEach(e => {
+    let dx = player.x - e.x;
+    let dy = player.y - e.y;
+    let dist = Math.hypot(dx,dy);
+    e.x += (dx/dist) * e.speed;
+    e.y += (dy/dist) * e.speed;
+
+    if (collide(player,e)) {
+      health--;
+      beep();
+      player.x = 40; player.y = 40;
+      if (health <= 0) {
+        lives--;
+        health = 3;
+        if (lives <= 0) gameState = "gameover";
+      }
+    }
+  });
+
+  bullets.forEach(b => {
+    b.x += b.dx;
+    enemies.forEach((e,i) => {
+      if (collide({x:b.x,y:b.y,size:5},e)) {
+        enemies.splice(i,1);
+      }
+    });
+  });
+
+  bullets = bullets.filter(b => b.x < 600);
+
+  if (collide(player,goal)) {
+    level++;
+    if (level > 6) gameState = "win";
+    else {
+      spawnEnemies();
+      player.x = 40; player.y = 40;
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,600,600);
+
+  ctx.fillStyle = "lime";
+  ctx.fillRect(goal.x,goal.y,goal.size,goal.size);
+
+  ctx.fillStyle = "gray";
+  walls.forEach(w => ctx.fillRect(w.x,w.y,w.w,w.h));
+
+  ctx.fillStyle = "cyan";
+  ctx.fillRect(player.x,player.y,player.size,player.size);
+
+  ctx.fillStyle = "red";
+  enemies.forEach(e => ctx.fillRect(e.x,e.y,e.size,e.size));
+
+  ctx.fillStyle = "yellow";
+  bullets.forEach(b => ctx.fillRect(b.x,b.y,5,5));
+
+  ui.innerHTML = `Level: ${level} | ❤️ Health: ${health} | 🎮 Lives: ${lives}`;
+
+  if (gameState === "gameover") {
+    ctx.fillStyle="white";
+    ctx.font="40px Arial";
+    ctx.fillText("GAME OVER",180,300);
+  }
+  if (gameState === "win") {
+    ctx.fillStyle="gold";
+    ctx.font="40px Arial";
+    ctx.fillText("YOU WIN 🎉",190,300);
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
